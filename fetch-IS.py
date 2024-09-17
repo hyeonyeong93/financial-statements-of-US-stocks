@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import json
 import ssl
 import certifi
@@ -15,7 +14,6 @@ def get_jsonparsed_data(url, api_key):
         'Authorization': f'Bearer {api_key}'
     }
     req = Request(url, headers=headers)
-
     with urlopen(req, context=context) as response:
         data = response.read().decode("utf-8")
     return json.loads(data)
@@ -33,9 +31,7 @@ def save_to_csv(data, file_path, mode='w'):
     if not data:
         print("No data to save.")
         return
-
     keys = data[0].keys()
-
     with open(file_path, mode, newline='') as output_file:
         dict_writer = csv.DictWriter(output_file, keys)
         if mode == 'w':
@@ -43,31 +39,17 @@ def save_to_csv(data, file_path, mode='w'):
         dict_writer.writerows(data)
 
 def truncate_file(file_path):
+    """
+    지정된 파일의 내용을 비웁니다.
+    이 함수는 새로운 데이터를 쓰기 전에 파일을 초기화하는 데 사용됩니다.
+    """
     open(file_path, 'w').close()
-
-def clear_specific_cells(file_path):
-    columns_to_clear = ['Company Name', 'Market Cap', 'Country', 'Sector', 'Industry']
-    temp_file = file_path + '.temp'
-
-    with open(file_path, 'r') as input_file, open(temp_file, 'w', newline='') as output_file:
-        reader = csv.DictReader(input_file)
-        fieldnames = reader.fieldnames
-        writer = csv.DictWriter(output_file, fieldnames=fieldnames)
-
-        writer.writeheader()
-        for row in reader:
-            if row['is_recent_quarter'] == 'False':
-                for col in columns_to_clear:
-                    row[col] = ''
-            writer.writerow(row)
-
-    os.replace(temp_file, file_path)
 
 def main():
     api_key = 'YOUR_API_KEY'
     base_url = "https://financialmodelingprep.com/api/v3/income-statement/"
     ticker_list_path = "/path/to/your/ticker-list.csv"
-    output_file_path = "/path/to/your/output/all_income_statements.csv"
+    output_file_path = "/path/to/your/all_income_statements.csv"
 
     # Truncate the output file before starting
     truncate_file(output_file_path)
@@ -80,14 +62,13 @@ def main():
 
         try:
             data = get_jsonparsed_data(url, api_key)
-
             if data:
                 # Sort data by date to ensure the most recent quarter is first
                 data.sort(key=lambda x: datetime.strptime(x['date'], '%Y-%m-%d'), reverse=True)
-
+                
                 # Mark the most recent quarter
                 data[0]['is_recent_quarter'] = True
-
+                
                 # Add additional information to each data point
                 for item in data:
                     item.update({
@@ -98,21 +79,16 @@ def main():
                         'Industry': ticker_info['Industry'],
                         'is_recent_quarter': item.get('is_recent_quarter', False)
                     })
-                    item.pop('link', None)
-                    item.pop('finalLink', None)
+                    item.pop('link', None)  # finalLink는 제거하지 않습니다
 
-            # Write to CSV (append mode for all except the first ticker)
-            mode = 'w' if index == 0 else 'a'
-            save_to_csv(data, output_file_path, mode)
-            print(f"Data for {ticker} has been saved.")
+                # Write to CSV (append mode for all except the first ticker)
+                mode = 'w' if index == 0 else 'a'
+                save_to_csv(data, output_file_path, mode)
+                print(f"Income statement data for {ticker} has been saved.")
         except Exception as e:
             print(f"An error occurred while processing {ticker}: {e}")
 
-    print(f"All data has been saved to {output_file_path}")
-
-    # Clear specific cells for non-recent quarters
-    clear_specific_cells(output_file_path)
-    print(f"Specific cells have been cleared in {output_file_path}")
+    print(f"All income statement data has been saved to {output_file_path}")
 
 if __name__ == "__main__":
     main()

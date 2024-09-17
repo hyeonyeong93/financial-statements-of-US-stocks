@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+import pandas as pd
+import os
+import numpy as np
+
+def calculate_cagr_longterm(group):
+    recent_44 = group.head(44)
+    
+    if len(recent_44) < 44:
+        return np.nan
+    
+    start_value = recent_44['Revenue_per_Share'].iloc[-4:].sum()
+    end_value = recent_44['Revenue_per_Share'].iloc[:4].sum()
+    
+    if start_value <= 0 or end_value <= 0:
+        return np.nan
+    
+    years = 10
+    cagr = (end_value / start_value) ** (1/years) - 1
+    
+    return cagr
+
+def process_financial_data():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    input_output_file = os.path.join(script_dir, 'FS_with_price.csv')
+    ticker_list_file = os.path.join(script_dir, 'ticker-list.csv')
+
+    # 1. Load CSV file
+    df = pd.read_csv(input_output_file, low_memory=False)
+
+    # 2. Calculate 'Dividend_Yield' column
+    df['Dividend_Yield'] = df['Annual_Dividend'] / df['price'].replace(0, float('nan'))
+
+    # 3. Drop 'calendarYear' and 'period' columns if they exist
+    columns_to_drop = ['calendarYear', 'period']
+    existing_columns = [col for col in columns_to_drop if col in df.columns]
+    if existing_columns:
+        df = df.drop(existing_columns, axis=1)
+
+    # 4. Load ticker-list.csv file
+    ticker_df = pd.read_csv(ticker_list_file)
+
+    # 5. Remove "Common Stock" from Company Name
+    ticker_df['Company Name'] = ticker_df['Company Name'].str.replace(' Common Stock', '', regex=False)
+
+    # 6. Merge 'Ticker' and 'Company Name' columns based on symbol
+    df = df.merge(ticker_df[['Ticker', 'Company Name']], left_on='symbol', right_on='Ticker', how='left')
+
+    # 7. Remove 'Ticker' column
+    df = df.drop('Ticker', axis=1)
+
+    # 8. Move 'Company Name' column right after 'symbol' column
+    cols = list(df.columns)
+    symbol_index = cols.index('symbol')
+    cols.insert(symbol_index + 1, cols.pop(cols.index('Company Name')))
+    df = df[cols]
+
+    # 9. Divide PER and PFFO by 4
+    for col in ['PER', 'PFFO']:
+        if col in df.columns:
+            df[col] = df[col] / 4
+
+    # 10. Calculate CAGR-Longterm (10 years)
+    df['CAGR-Longterm'] = np.nan
+    for symbol, group in df.groupby('symbol'):
+        cagr = calculate_cagr_longterm(group)
+        first_valid_price_index = group['price'].first_valid_index()
+        if first_valid_price_index is not None:
+            df.loc[first_valid_price_index, 'CAGR-Longterm'] = cagr
+
+    # 11. Clear is_Monthly_dividend and Annual_Dividend when price is null
+    columns_to_clear = ['is_Monthly_dividend', 'Annual_Dividend']
+    for col in columns_to_clear:
+        if col in df.columns:
+            df.loc[df['price'].isnull(), col] = np.nan
+
+    # 12. Remove SEC_filing.1 column
+    if 'SEC_filing.1' in df.columns:
+        df = df.drop('SEC_filing.1', axis=1)
+
+    # 13. Round CAGR-Longterm to 4 decimal places
+    if 'CAGR-Longterm' in df.columns:
+        df['CAGR-Longterm'] = df['CAGR-Longterm'].round(4)
+
+    # 14. Save the results
+    df.to_csv(input_output_file, index=False)
+    print(f"Processing completed. Results saved to {input_output_file}")
+
+if __name__ == "__main__":
+    process_financial_data()

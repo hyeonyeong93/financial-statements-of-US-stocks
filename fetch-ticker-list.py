@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import pandas as pd
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -28,9 +27,9 @@ def download_google_sheet(spreadsheet_id, range_name, credentials_path, output_p
 def main():
     # Set up the parameters
     spreadsheet_id = 'YOUR_SPREADSHEET_ID'
-    range_name = 'Ticker_list'
+    range_name = 'YOUR_RANGE_NAME'
     credentials_path = '/path/to/your/credentials.json'
-    output_path = '/path/to/your/output/ticker-list.csv'
+    output_path = '/path/to/your/output.csv'
 
     # Download the Google Sheet
     download_google_sheet(spreadsheet_id, range_name, credentials_path, output_path)
